@@ -1,0 +1,83 @@
+[2m2022-06-30T09:11:12.754219Z[0m [32m INFO[0m [2mbevy_render::renderer[0m[2m:[0m AdapterInfo { name: "NVIDIA GeForce RTX 3070", vendor: 4318, device: 9352, device_type: DiscreteGpu, backend: Vulkan }
+[2m2022-06-30T09:11:12.852455Z[0m [32m INFO[0m [2mbevy_input::gamepad[0m[2m:[0m Gamepad { id: 0 } Connected
+mesh count: 0
+transform count: 2
+mesh count: 1
+transform count: 5
+triangles: 2464
+aabb: Aabb { center: Vec3A(0.0, 1.5745844, -0.21779108), half_extents: Vec3A(2.0022125, 1.5754157, 3.217596) }
+7.2162746s
+                                            xxxxxxx                                      
+                                           xxxxxxxxx                                     
+                                           xxxxxxxxx                                     
+                                           xxxxxxxxx                                     
+                                           xxxxxxxxx                                     
+                                            xxxxxxx                                      
+                                            xxxxxxx                                      
+                                             xxxxx                                       
+                                             xxxxx                                       
+                                             xxxxx                                       
+                                             xxxxx                                       
+                                            xxxxxxx                                      
+                                          xxxxxxxxxxx                                    
+                                       xxxxxxxxxxxxxxxxx                                 
+                                   xxxxxxxxxxxxxxxxxxxxxxxxx                             
+                                xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx                          
+ x      x                  x  xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx  x                     
+  x      x                 x  xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx  x                     
+   xx    xx                x xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx x                     
+    xxx  xx               xx xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx xx                    
+     xxx xxx              xx xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx                       
+      xxxxxx              xx xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx          
+      xxxxxx             xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx      
+      xxxxxxx            xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx xxxxxxxxxxxxxxx   
+       xxxxxx            xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx xxxxxxxxxxxxxxxx  
+       xxxxxx            xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx xxxxxxxxxxxxxxxxx 
+        xxxxx           xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx            xxxxxxxxxxx 
+        xxxxxx          xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx      x           xxxxxx 
+        xxxxxx          xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx       x             xxxxx
+        xxxxxx          xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx       xx             xxxxx
+         xxxxx         xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx        xxx             xxxx
+         xxxxx         xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx       xxxx             xxxx
+         xxxxxx        xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx        xxxx             xxxx
+         xxxxxx        xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx        xxxxx             xxxx
+         xxxxxx       xxxxxxx      xxxxxxxxxxxxxxxxxxxxxxxx       xxxxxxx            xxxx
+          xxxxxx      xxxx          xxxxxxxxxxxxxxxxxxxxxx        xxxxxxx           xxxxx
+          xxxxxx      xxx            xxxxxxxxxxxxxxxxxxxxx       xxxxxxxx           xxxxx
+          xxxxxxx     xx              xxxxxxxxxxxxxxxxxxxx      xxxxxxxxx           xxxx 
+          xxxxxxxx   xx                xxxxxxxxxxxxxxxxxx      xxxxxxxxxxx          xxxx 
+          xxxxxxxxxx x                 xxxxxxxxxxxxxxxxxx     xxxxxxxxxxxx          xxxx 
+          xxxxxxxxxxxxxx                xxxxxxxxxxxxxxxx     xxxxxxxxxxxxx         xxxxx 
+           xxxxxxxxx xxxxxxxxxx          xxxxxxxxxxxxxxx    xxxxxxxxxxxxxx         xxxx  
+           xxxxxxxx  xxxxxxxxxxxxxxxxx   xxxxxxxxxxxxxxx   xxxxxxxxxxxxxxx         xxxx  
+           xxxxxxx   xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx   xxxxxxxxxxxxxxxx        xxxxx  
+           xxxxxx   xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx  xxxxxxxxxxxxxxxxx       xxxx   
+            xxxx    xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx      xxxxx   
+            xxxx    xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx      xxxx    
+            xxxxx   xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx     xxxxx    
+             xxxx   xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx    xxxxx     
+             xxxx   xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx    xxxxx     
+             xxxx   xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx   xxxxx      
+              xxx   xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx  xxxxx       
+              xxxx  xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx xxxxx        
+               xxx  xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx xxxxx        
+                xxx xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx  xxx         
+                 xx xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx xxx          
+                  x xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx xx           
+                   xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx            
+                     xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx               
+                       xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx               
+                     x   xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx               
+                      x     xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx                
+                      xx    xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx                
+                       xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx                 
+                       xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx                 
+                        xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx                  
+                        xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx                  
+                         xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx                   
+                          xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx                    
+                          xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx                    
+                           xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx                     
+                           xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx                     
+                             xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx                       
+                                   xxxxxxxxxxxxxxxxxxxxxxxxx                             
