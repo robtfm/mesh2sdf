@@ -1,83 +1,18 @@
-[2m2022-06-30T09:11:12.754219Z[0m [32m INFO[0m [2mbevy_render::renderer[0m[2m:[0m AdapterInfo { name: "NVIDIA GeForce RTX 3070", vendor: 4318, device: 9352, device_type: DiscreteGpu, backend: Vulkan }
-[2m2022-06-30T09:11:12.852455Z[0m [32m INFO[0m [2mbevy_input::gamepad[0m[2m:[0m Gamepad { id: 0 } Connected
-mesh count: 0
-transform count: 2
-mesh count: 1
-transform count: 5
-triangles: 2464
-aabb: Aabb { center: Vec3A(0.0, 1.5745844, -0.21779108), half_extents: Vec3A(2.0022125, 1.5754157, 3.217596) }
-7.2162746s
-                                            xxxxxxx                                      
-                                           xxxxxxxxx                                     
-                                           xxxxxxxxx                                     
-                                           xxxxxxxxx                                     
-                                           xxxxxxxxx                                     
-                                            xxxxxxx                                      
-                                            xxxxxxx                                      
-                                             xxxxx                                       
-                                             xxxxx                                       
-                                             xxxxx                                       
-                                             xxxxx                                       
-                                            xxxxxxx                                      
-                                          xxxxxxxxxxx                                    
-                                       xxxxxxxxxxxxxxxxx                                 
-                                   xxxxxxxxxxxxxxxxxxxxxxxxx                             
-                                xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx                          
- x      x                  x  xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx  x                     
-  x      x                 x  xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx  x                     
-   xx    xx                x xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx x                     
-    xxx  xx               xx xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx xx                    
-     xxx xxx              xx xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx                       
-      xxxxxx              xx xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx          
-      xxxxxx             xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx      
-      xxxxxxx            xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx xxxxxxxxxxxxxxx   
-       xxxxxx            xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx xxxxxxxxxxxxxxxx  
-       xxxxxx            xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx xxxxxxxxxxxxxxxxx 
-        xxxxx           xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx            xxxxxxxxxxx 
-        xxxxxx          xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx      x           xxxxxx 
-        xxxxxx          xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx       x             xxxxx
-        xxxxxx          xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx       xx             xxxxx
-         xxxxx         xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx        xxx             xxxx
-         xxxxx         xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx       xxxx             xxxx
-         xxxxxx        xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx        xxxx             xxxx
-         xxxxxx        xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx        xxxxx             xxxx
-         xxxxxx       xxxxxxx      xxxxxxxxxxxxxxxxxxxxxxxx       xxxxxxx            xxxx
-          xxxxxx      xxxx          xxxxxxxxxxxxxxxxxxxxxx        xxxxxxx           xxxxx
-          xxxxxx      xxx            xxxxxxxxxxxxxxxxxxxxx       xxxxxxxx           xxxxx
-          xxxxxxx     xx              xxxxxxxxxxxxxxxxxxxx      xxxxxxxxx           xxxx 
-          xxxxxxxx   xx                xxxxxxxxxxxxxxxxxx      xxxxxxxxxxx          xxxx 
-          xxxxxxxxxx x                 xxxxxxxxxxxxxxxxxx     xxxxxxxxxxxx          xxxx 
-          xxxxxxxxxxxxxx                xxxxxxxxxxxxxxxx     xxxxxxxxxxxxx         xxxxx 
-           xxxxxxxxx xxxxxxxxxx          xxxxxxxxxxxxxxx    xxxxxxxxxxxxxx         xxxx  
-           xxxxxxxx  xxxxxxxxxxxxxxxxx   xxxxxxxxxxxxxxx   xxxxxxxxxxxxxxx         xxxx  
-           xxxxxxx   xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx   xxxxxxxxxxxxxxxx        xxxxx  
-           xxxxxx   xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx  xxxxxxxxxxxxxxxxx       xxxx   
-            xxxx    xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx      xxxxx   
-            xxxx    xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx      xxxx    
-            xxxxx   xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx     xxxxx    
-             xxxx   xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx    xxxxx     
-             xxxx   xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx    xxxxx     
-             xxxx   xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx   xxxxx      
-              xxx   xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx  xxxxx       
-              xxxx  xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx xxxxx        
-               xxx  xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx xxxxx        
-                xxx xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx  xxx         
-                 xx xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx xxx          
-                  x xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx xx           
-                   xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx            
-                     xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx               
-                       xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx               
-                     x   xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx               
-                      x     xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx                
-                      xx    xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx                
-                       xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx                 
-                       xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx                 
-                        xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx                  
-                        xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx                  
-                         xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx                   
-                          xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx                    
-                          xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx                    
-                           xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx                     
-                           xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx                     
-                             xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx                       
-                                   xxxxxxxxxxxxxxxxxxxxxxxxx                             
+[2m2022-07-02T21:52:15.879548Z[0m [32m INFO[0m [2mbevy_render::renderer[0m[2m:[0m AdapterInfo { name: "NVIDIA GeForce RTX 3070", vendor: 4318, device: 9352, device_type: DiscreteGpu, backend: Vulkan }
+[2m2022-07-02T21:52:15.961654Z[0m [32m INFO[0m [2mbevy_input::gamepad[0m[2m:[0m Gamepad { id: 0 } Connected
+triangles: 2256
+aabb: Aabb { center: Vec3A(0.21481502, 1.575, 1.7881393e-7), half_extents: Vec3A(4.8222227, 2.3625002, 3.0) }
+prep: 2.2647ms, proc: 8.871021s, res: 12.3µs, tot: 8.873298s
+8.8736401s
+extract
+prep
++ mesh
+[2m2022-07-02T21:52:24.880822Z[0m [32m INFO[0m [2mbevy diagnostic[0m[2m:[0m frame_time                      :    8.896294s (avg 4.459869s)
+[2m2022-07-02T21:52:24.880847Z[0m [32m INFO[0m [2mbevy diagnostic[0m[2m:[0m fps                             :    0.112406  (avg 21.384259)
+[2m2022-07-02T21:52:24.880854Z[0m [32m INFO[0m [2mbevy diagnostic[0m[2m:[0m frame_count                     : 3.000000
+[2m2022-07-02T21:52:24.961495Z[0m [32m INFO[0m [2mbevy diagnostic[0m[2m:[0m frame_time                      :    0.002096s (avg 0.001271s)
+[2m2022-07-02T21:52:24.961532Z[0m [32m INFO[0m [2mbevy diagnostic[0m[2m:[0m fps                             :  477.144766  (avg 884.879313)
+[2m2022-07-02T21:52:24.961540Z[0m [32m INFO[0m [2mbevy diagnostic[0m[2m:[0m frame_count                     : 69.000000
+[2m2022-07-02T21:52:25.379503Z[0m [32m INFO[0m [2mbevy_winit[0m[2m:[0m Skipped event for closed window: WindowId(00000000-0000-0000-0000-000000000000)
+[2m2022-07-02T21:52:25.379540Z[0m [32m INFO[0m [2mbevy_winit[0m[2m:[0m Skipped event for closed window: WindowId(00000000-0000-0000-0000-000000000000)
+[2m2022-07-02T21:52:25.381462Z[0m [32m INFO[0m [2mbevy_winit[0m[2m:[0m Skipped event for closed window: WindowId(00000000-0000-0000-0000-000000000000)

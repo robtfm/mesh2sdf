@@ -35,17 +35,22 @@ fn calc([[builtin(global_invocation_id)]] invocation_id: vec3<u32>, [[builtin(nu
     for (var t = 0 u; t < arrayLength(mesh.data); t = t + 1) {
         let tri = mesh.data[t];
         let normal = normalize((tri.b-tri.a).cross(tri.c-tri.b));
-        let normal_d = vec4<f32>(normal, -dot(tri.a, normal));
 
+        let center = (tri.a + tri.b + tri.c) / 3.0;
+        let a = a + normalize(center - tri.a) * 0.0001 + normal * 0.0001;
+        let b = b + normalize(center - tri.a) * 0.0001 + normal * 0.0001;
+        let c = c + normalize(center - tri.a) * 0.0001 + normal * 0.0001;
+
+        let normal_d = vec4<f32>(normal, -dot(a, normal));
         let dist_to_plane = normal_d.dot(point);
         let dist_to_plane_sq = dist_to_plane * dist_to_plane;
 
         if (dist_to_plane_sq < best_sq) {
-            let inv_area = 1.0 / dot(cross(tri.b - tri.a, tri.c - tri.a), normal);
+            let inv_area = 1.0 / dot(cross(b - a, c - a), normal);
             let point_on_plane = point.xyz + distance_to_plane * normal;
             // barycoords
-            let u = dot(cross(tri.c - tri.b, point_on_plane - tri.b), normal) * inv_area;
-            let v = dot(cross(tri.a - tri.c, point_on_plane - tri.c), normal) * inv_area;
+            let u = dot(cross(c - b, point_on_plane - b), normal) * inv_area;
+            let v = dot(cross(a - c, point_on_plane - c), normal) * inv_area;
             let w = 1.0 - u - v;
 
             var dist_sq: f32;
