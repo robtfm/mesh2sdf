@@ -95,7 +95,7 @@ impl SimpleTextureSpec for SdfMaterialSpec {
 
     fn fragment_shader(asset_server: &AssetServer) -> Option<Handle<Shader>> {
         asset_server.watch_for_changes().unwrap();
-        Some(asset_server.load("render_sdf.wgsl"))
+        Some(asset_server.load("shader/render_sdf.wgsl"))
     }
 
     fn prepare_uniform_data(&self, _: &mut Self::Param) -> Option<Self::Uniform> {

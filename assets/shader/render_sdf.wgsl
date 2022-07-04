@@ -25,15 +25,21 @@ struct FragmentInput {
     [[builtin(position)]] frag_coord: vec4<f32>;
 };
 
+fn isnan(x: f32) -> bool {
+    if (x == 0.0) {return false;}
+    if (min(0.0, x) == max(0.0, x)) {return true;}
+    return false;
+}
+
 fn sample_distance(pos: vec3<f32>) -> vec3<f32> {
-    let local_position = mesh_position_local_to_world(mesh.inverse_transpose_model, vec4<f32>(pos, 1.0));
+    let local_position = transpose(mesh.inverse_transpose_model) * vec4<f32>(pos, 1.0);
     let local_position = local_position.xyz / local_position.w;
     let nearest = clamp(local_position, material.aabb_min, material.aabb_min + material.aabb_extents);
 
     let coords = clamp((local_position - material.aabb_min) / material.aabb_extents, vec3<f32>(0.0), vec3<f32>(1.0)); // 0-1
     let sample = textureSample(sdf_texture, sdf_sampler, coords).r;
 
-    let offset = nearest - pos;
+    let offset = nearest - local_position;
     let distance_to_aabb_sq = dot(offset, offset);        
 
     if (distance_to_aabb_sq == 0.0) {
@@ -41,8 +47,8 @@ fn sample_distance(pos: vec3<f32>) -> vec3<f32> {
         return vec3<f32>(sample, 0.0, 0.0);
     } else {
         if (sample < 0.0) {
-            return vec3<f32>(distance_to_aabb_sq, 1.0, sample);
-            // error
+            return vec3<f32>(0.0, 1.0, 0.0);
+            // error, negative on edge
         }
         // worst case assume right angle
         let sample = max(sample, 0.0);
@@ -70,48 +76,28 @@ fn fragment(in: FragmentInput) -> [[location(0)]] vec4<f32> {
     var pos = origin;
     var steps: u32 = 0u;
 
-    var distance = material.hit_threshold + 0.001;
+    var dist = material.hit_threshold + 0.001;
     var distance_sq = 0.0;
 
-    let tl = material.aabb_min;
-    let br = tl + material.aabb_extents;
+    // todo use view depth for max dist
+    // also use aabb center + half_extents?
+    let tl = mesh.model * vec4<f32>(material.aabb_min, 1.0);
+    let tl = tl.xyz / tl.w;
+    let max_distance = distance(origin, tl) + length(material.aabb_extents) * 2.0;
+    let max_distance_sq = max_distance * max_distance;
 
-    let max_distance_sq = 
-        max(
-            max(
-                max(
-                    sqlen(vec3<f32>(tl.x , tl.y, tl.z) - origin),
-                    sqlen(vec3<f32>(tl.x , tl.y, br.z) - origin)
-                ),
-                max(
-                    sqlen(vec3<f32>(tl.x , br.y, tl.z) - origin),
-                    sqlen(vec3<f32>(tl.x , br.y, br.z) - origin)
-                )
-            ),
-            max(
-                max(
-                    sqlen(vec3<f32>(br.x , tl.y, tl.z) - origin),
-                    sqlen(vec3<f32>(br.x , tl.y, br.z) - origin)
-                ),
-                max(
-                    sqlen(vec3<f32>(br.x , br.y, tl.z) - origin),
-                    sqlen(vec3<f32>(br.x , br.y, br.z) - origin)
-                )
-            )
-        );
-
-    for (; distance_sq < max_distance_sq && distance > material.hit_threshold && steps < material.max_step_count; steps = steps + 1u) {
-        pos = pos + max(material.min_step_size, distance) * ray;
+    for (; distance_sq < max_distance_sq && dist > material.hit_threshold && steps < material.max_step_count; steps = steps + 1u) {
+        pos = pos + max(material.min_step_size, dist) * ray;
         let res = sample_distance(pos);
         if (res.y > 0.0) {
-            return vec4<f32>(0.0 * sqrt(res.x) / 10.0, 0.0, -res.z * 0.0, 1.0);
+            return vec4<f32>(0.0, sqrt(res.x), res.z, 1.0);
         }
-        distance = res.x;
+        dist = res.x;
         distance_sq = dot(pos - origin, pos - origin);
     }
 
     var output = material.base_color;
-    if (distance < material.hit_threshold) {
+    if (dist < material.hit_threshold) {
         output = output + material.hit_color;
     }
     output = output + material.step_color * (f32(steps) / f32(material.max_step_count));

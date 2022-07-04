@@ -35,15 +35,17 @@ fn main() {
     app.add_startup_system(setup);
     app.add_system(system);
     app.add_system(toggle);
+    app.add_system(rotate);
     app.run();
 }
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     let filename = std::env::args().nth(1).unwrap_or("teapot".into());
 
-    let scene = asset_server.load(format!("{}.glb#Scene0", filename).as_str());
+    let scene = asset_server.load(format!("gltf/{}.glb#Scene0", filename).as_str());
     commands.spawn_bundle(SceneBundle {
         scene,
+        transform: Transform::from_xyz(3.0, 0.5, -5.0),
         ..Default::default()
     });
 
@@ -57,18 +59,24 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
 
 fn system(
     mut commands: Commands,
-    mesh_ents: Query<(Entity, &Handle<Mesh>), Without<Sdf>>,
+    mesh_ents: Query<(Entity, &Handle<Mesh>, &GlobalTransform), Without<Sdf>>,
     meshes: ResMut<Assets<Mesh>>,
     mut images: ResMut<Assets<Image>>,
     mut render_sdfs: ResMut<Assets<SdfMaterial>>,
 ) {
-    for (ent, h) in mesh_ents.iter() {
+    for (ent, h, transform) in mesh_ents.iter() {
+        if transform.translation == Vec3::ZERO {
+            continue;
+        }
         if let Some(mesh) = meshes.get(h) {
             println!("triangles: {}", mesh.indices().unwrap().len() / 3);
             let mut aabb = mesh.compute_aabb().unwrap();
-            aabb.half_extents *= 1.5;
+            aabb.half_extents *= 1.1;
             println!("aabb: {:?}", aabb);
-            let dimensions = UVec3::new(16, 16, 16) * 4;
+            let max_dim = aabb.half_extents.max_element();
+            let mult = std::env::args().nth(2).unwrap_or("4".into()).parse::<u32>().unwrap();
+            let dimensions = (aabb.half_extents / max_dim * 32.0).as_uvec3() * mult;
+            println!("dimensions: {}", dimensions);
             // let dimensions = UVec3::new(128, 74, 89);
             let start = std::time::Instant::now();
             let sdf = create_sdf_from_mesh_cpu(&mesh, &aabb, dimensions, None);//, Some(UVec3::new(0, 63-0, 63)));
@@ -141,5 +149,14 @@ fn toggle(
         for mut vis in base.iter_mut() {
             vis.is_visible = !vis.is_visible;
         }
+    }
+}
+
+fn rotate(
+    mut q: Query<&mut Transform, (With<Handle<Mesh>>, With<Handle<StandardMaterial>>)>,
+    time: Res<Time>,
+) {
+    for mut t in q.iter_mut() {
+        t.rotation = Quat::from_euler(EulerRot::YXZ, time.seconds_since_startup().sin() as f32, 0.0, 0.0);
     }
 }
