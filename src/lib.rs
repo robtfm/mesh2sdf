@@ -2,6 +2,7 @@
 pub mod controller;
 pub mod render;
 pub mod shader;
+pub mod compute;
 
 use std::{collections::BTreeMap};
 
@@ -11,103 +12,14 @@ use bevy::{
     render::{
         mesh::{PrimitiveTopology, VertexAttributeValues},
         primitives::{Aabb, Plane},
-        render_resource::{Extent3d, TextureDimension, SamplerDescriptor, AddressMode, FilterMode}, texture::ImageSampler,
+        render_resource::{Extent3d, TextureDimension, SamplerDescriptor, AddressMode, FilterMode, TextureUsages}, texture::ImageSampler,
     }, utils::FloatOrd,
 };
 
-pub struct Mesh2Sdf;
-
-impl Plugin for Mesh2Sdf {
-    fn build(&self, app: &mut App) {
-        app.add_system(generate_sdfs);
-    }
-}
-
-#[derive(Component)]
+#[derive(Component, Clone)]
 pub struct Sdf {
     pub image: Handle<Image>,
     pub aabb: Aabb,
-}
-
-#[derive(Component)]
-pub struct AnalyticSdf {
-    func: SdfFunc,
-    dimension: UVec3,
-}
-
-#[derive(Component)]
-pub struct MeshSdf {
-    dimensions: UVec3,
-}
-
-pub struct SdfFunc(Box<dyn Fn(Vec3) -> f32 + Sync + Send + 'static>);
-
-impl SdfFunc {
-    pub fn sphere(origin: Vec3, radius: f32) -> SdfFunc {
-        Self(Box::new(move |p: Vec3| p.distance(origin) - radius))
-    }
-
-    pub fn union(funcs: impl Iterator<Item = SdfFunc>) -> SdfFunc {
-        let funcs: Vec<_> = funcs.collect();
-        Self(Box::new(move |p: Vec3| {
-            funcs.iter().fold(f32::MAX, |min, f| f32::min(min, f.0(p)))
-        }))
-    }
-}
-
-#[derive(Debug)]
-pub struct TriData {
-    pub a: Vec3A,
-    pub b: Vec3A,
-    pub c: Vec3A,
-}
-
-pub fn create_sdf_from_mesh_gpu(mesh: &Mesh, aabb: &Aabb, dimension: UVec3) -> Image {
-    assert!(
-        matches!(mesh.primitive_topology(), PrimitiveTopology::TriangleList),
-        "`sdf generation can only work on `TriangleList`s"
-    );
-
-    let Some(VertexAttributeValues::Float32x3(values)) = mesh.attribute(Mesh::ATTRIBUTE_POSITION) else {
-        panic!("bad mesh");
-    };
-
-    let values: Vec<[f32; 3]> = match mesh.indices() {
-        Some(ix) => ix.iter().map(|ix| values[ix]).collect(),
-        None => values.iter().copied().collect(),
-    };
-
-    let scale = aabb.half_extents / dimension.as_vec3a();
-    let shift = scale * 0.2;
-
-    let _triangles: Vec<TriData> = values
-        .chunks_exact(3)
-        .map(|abc| {
-            let a = Vec3A::from(abc[0]);
-            let b = Vec3A::from(abc[1]);
-            let c = Vec3A::from(abc[2]);
-
-            // push
-            let center = (a + b + c) / 3.0;
-            let [a, b, c] = [a, b, c].map(|v| {
-                let offset = center - v;
-                v + offset * f32::min(0.5, shift.dot(offset.abs()) / offset.length_squared())
-            });
-
-            TriData { a, b, c }
-        })
-        .collect();
-
-    Image::new_fill(
-        Extent3d {
-            width: dimension.x,
-            height: dimension.y,
-            depth_or_array_layers: dimension.z,
-        },
-        TextureDimension::D3,
-        &f32::MAX.to_le_bytes(),
-        bevy::render::render_resource::TextureFormat::R32Float,
-    )
 }
 
 #[derive(PartialEq, Clone, Copy, Debug)]
@@ -128,13 +40,24 @@ impl PartialOrd for OrderedVec {
     }
 }
 
-pub fn create_sdf_from_mesh_cpu(mesh: &Mesh, aabb: &Aabb, dimension: UVec3, debug: Option<UVec3>) -> Image {
-    let start = std::time::Instant::now();
-    assert!(
-        matches!(mesh.primitive_topology(), PrimitiveTopology::TriangleList),
-        "`sdf generation can only work on `TriangleList`s"
-    );
+#[derive(Debug)]
+struct TriData {
+    a: Vec3A,
+    b: Vec3A,
+    c: Vec3A,
+    inv_area: f32,
+    plane: Plane,
+}
 
+pub struct PreprocessedMeshData {
+    vertices: Vec<(Vec3A, Vec3A)>,
+    edges: Vec<((Vec3A, Vec3A), Vec3A)>,
+    triangles: Vec::<TriData>,
+}
+
+pub fn preprocess_mesh_for_sdf(
+    mesh: &Mesh
+) -> PreprocessedMeshData {
     let Some(VertexAttributeValues::Float32x3(values)) = mesh.attribute(Mesh::ATTRIBUTE_POSITION) else {
         panic!("bad mesh");
     };
@@ -143,17 +66,6 @@ pub fn create_sdf_from_mesh_cpu(mesh: &Mesh, aabb: &Aabb, dimension: UVec3, debu
         Some(ix) => ix.iter().map(|ix| values[ix]).collect(),
         None => values.iter().copied().collect(),
     };
-
-    let scale = aabb.half_extents * 2.0 / (dimension - 1).as_vec3a();
-
-    #[derive(Debug)]
-    struct TriData {
-        a: Vec3A,
-        b: Vec3A,
-        c: Vec3A,
-        inv_area: f32,
-        plane: Plane,
-    }
 
     let mut vertices = BTreeMap::<OrderedVec, Vec3A>::new();
     let mut edges = BTreeMap::<(OrderedVec, OrderedVec), Vec3A>::new();
@@ -198,6 +110,22 @@ pub fn create_sdf_from_mesh_cpu(mesh: &Mesh, aabb: &Aabb, dimension: UVec3, debu
         ((a*a + b*b - opp*opp) / (2.0 * a * b)).acos()
     }
 
+    PreprocessedMeshData { 
+        vertices: vertices.into_iter().map(|(ov, n)| (ov.0, n)).collect(), 
+        edges: edges.into_iter().map(|((ov0, ov1), n)| ((ov0.0, ov1.0), n)).collect(),
+        triangles 
+    }
+}
+
+pub fn create_sdf_from_mesh_cpu(mesh: &Mesh, aabb: &Aabb, dimension: UVec3, debug: Option<UVec3>) -> Image {
+    let start = std::time::Instant::now();
+    assert!(
+        matches!(mesh.primitive_topology(), PrimitiveTopology::TriangleList),
+        "`sdf generation can only work on `TriangleList`s"
+    );
+
+    let preprocessed = preprocess_mesh_for_sdf(mesh);
+
     let compute_distance = |point: Vec3A, debug: bool| -> f32 {
         if debug {
             println!("point: {}", point);
@@ -212,35 +140,35 @@ pub fn create_sdf_from_mesh_cpu(mesh: &Mesh, aabb: &Aabb, dimension: UVec3, debu
 
         let mut best = Res{dist_sq: f32::MAX, ..Default::default()};
 
-        for (v, n) in vertices.iter() {
-            let dist_sq = point.distance_squared(v.0);
+        for &(v, n) in preprocessed.vertices.iter() {
+            let dist_sq = point.distance_squared(v);
             if dist_sq < best.dist_sq {
                 best.dist_sq = dist_sq;
-                best.norm = *n;
-                best.nearest = v.0;
-                if debug {println!("vertex -- {}\n{:?}", v.0, best);}
+                best.norm = n;
+                best.nearest = v;
+                if debug {println!("vertex -- {}\n{:?}", v, best);}
             }
         }
 
-        for ((v0, v1), n) in edges.iter() {
-            let line = v1.0 - v0.0;
+        for &((v0, v1), n) in preprocessed.edges.iter() {
+            let line = v1 - v0;
             let line_len_sq = line.length_squared();
-            let intercept = f32::clamp((point - v0.0).dot(line), 0.0, line_len_sq);
+            let intercept = f32::clamp((point - v0).dot(line), 0.0, line_len_sq);
             if intercept < 0.001 || intercept > line_len_sq * 0.999 {
                 continue;
             }
 
-            let nearest = v0.0 + line * (intercept / line_len_sq);
+            let nearest = v0 + line * (intercept / line_len_sq);
             let dist_sq = point.distance_squared(nearest);
             if dist_sq < best.dist_sq {
                 best.dist_sq = dist_sq;
-                best.norm = *n;
+                best.norm = n;
                 best.nearest = nearest;
-                if debug {println!("edge -- {}-{}\n{:?}", v0.0, v1.0, best);}
+                if debug {println!("edge -- {}-{}\n{:?}", v0, v1, best);}
             }
         }
 
-        for tri in triangles.iter() {
+        for tri in preprocessed.triangles.iter() {
             let distance_to_plane = tri.plane.normal_d().dot(point.extend(1.0));
             let distance_to_plane_sq = distance_to_plane * distance_to_plane;
             if distance_to_plane_sq > best.dist_sq {
@@ -279,6 +207,8 @@ pub fn create_sdf_from_mesh_cpu(mesh: &Mesh, aabb: &Aabb, dimension: UVec3, debu
         }
     };
 
+    let scale = aabb.half_extents * 2.0 / (dimension - 1).as_vec3a();
+
     let mut data: Vec<u8> = Vec::new();
     data.resize((4 * dimension.x * dimension.y * dimension.z) as usize, 0);
     let mut chunks = data.as_chunks_mut::<4>().0.iter_mut();
@@ -295,10 +225,6 @@ pub fn create_sdf_from_mesh_cpu(mesh: &Mesh, aabb: &Aabb, dimension: UVec3, debu
                 }
 
                 let dist = compute_distance(point, false);
-
-                // if (dist + 0.6664815).abs() < 0.01 {
-                //     println!("found you: {:?}", [x, y, z]);
-                // }
 
                 let chunk = chunks.next().unwrap();
                 chunk.copy_from_slice(&dist.to_le_bytes());
@@ -336,209 +262,30 @@ pub fn create_sdf_from_mesh_cpu(mesh: &Mesh, aabb: &Aabb, dimension: UVec3, debu
     image
 }
 
-fn create_sdf_from_fn(func: &SdfFunc, aabb: &Aabb, dimension: UVec3) -> Image {
-    let scale = Vec3::from(aabb.half_extents) / dimension.as_vec3();
-
-    let mut data: Vec<u8> = Vec::new();
-    data.resize((4 * dimension.x * dimension.y * dimension.z) as usize, 0);
-    let mut chunks = data.as_chunks_mut::<4>().0.iter_mut();
-
-    for x in 0..dimension.x {
-        for y in 0..dimension.y {
-            for z in 0..dimension.z {
-                let point =
-                    Vec3::from(aabb.min()) + scale * ((UVec3::new(x, y, z) * 2) + 1).as_vec3();
-                let dist = func.0(point);
-                let chunk = chunks.next().unwrap();
-                chunk.copy_from_slice(&dist.to_le_bytes());
-            }
-        }
-    }
-
-    Image::new(
+pub fn create_sdf_image(dimension: UVec3) -> Image {
+    let mut image = Image::new_fill(
         Extent3d {
             width: dimension.x,
             height: dimension.y,
             depth_or_array_layers: dimension.z,
         },
         TextureDimension::D3,
-        data,
+        &[0;4],
         bevy::render::render_resource::TextureFormat::R32Float,
-    )
-}
+    );
 
-fn generate_sdfs(
-    mut commands: Commands,
-    new_by_mesh: Query<(Entity, &Handle<Mesh>, &Aabb, &MeshSdf), Without<Sdf>>,
-    new_by_anal: Query<(Entity, &Aabb, &AnalyticSdf), Without<Sdf>>,
-    meshes: Res<Assets<Mesh>>,
-    mut images: ResMut<Assets<Image>>,
-) {
-    for (ent, mesh_handle, aabb, autosdf) in new_by_mesh.iter() {
-        if let Some(mesh) = meshes.get(mesh_handle) {
-            let image = create_sdf_from_mesh_cpu(mesh, aabb, autosdf.dimensions, None);
-            let image = images.add(image);
-            commands.entity(ent).insert(Sdf {
-                image,
-                aabb: aabb.clone(),
-            });
-        }
-    }
+    image.sampler_descriptor = ImageSampler::Descriptor(SamplerDescriptor{
+        address_mode_u: AddressMode::ClampToEdge,
+        address_mode_v: AddressMode::ClampToEdge,
+        address_mode_w: AddressMode::ClampToEdge,
+        mag_filter: FilterMode::Linear,
+        min_filter: FilterMode::Linear,
+        mipmap_filter: FilterMode::Linear,
+        ..Default::default()
+    });
 
-    for (ent, aabb, anal) in new_by_anal.iter() {
-        let image = create_sdf_from_fn(&anal.func, aabb, anal.dimension);
-        let image = images.add(image);
-        commands.entity(ent).insert(Sdf {
-            image,
-            aabb: aabb.clone(),
-        });
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use bevy::{
-        math::Vec3A,
-        prelude::*,
-        render::{mesh::PrimitiveTopology, primitives::Aabb},
-    };
-
-    use crate::{create_sdf_from_fn, create_sdf_from_mesh_cpu, SdfFunc};
-
-    #[test]
-    fn icosphere_sdf() {
-        let icosphere = shape::Icosphere {
-            radius: 6.5,
-            subdivisions: 10,
-        };
-        let mesh = Mesh::from(icosphere);
-        println!("vertices: {}", mesh.count_vertices());
-        let aabb = Aabb {
-            center: Vec3A::ZERO,
-            half_extents: Vec3A::splat(10.0),
-        };
-        let dimensions = UVec3::new(25, 25, 25);
-        let sdf = create_sdf_from_mesh_cpu(&mesh, &aabb, dimensions, None);
-
-        let _scale = aabb.half_extents / dimensions.as_vec3a();
-
-        for y in 0..dimensions.y {
-            for x in 0..dimensions.x {
-                let z = (dimensions.z + 1) / 2;
-                let ix = x * dimensions.z * dimensions.y + y * dimensions.z + z;
-                let byte_ix = (ix * 4) as usize;
-                let float = f32::from_le_bytes(sdf.data[byte_ix..byte_ix + 4].try_into().unwrap());
-                let int = (float - 0.5).ceil() as i32;
-                if int < 0 {
-                    // let point = aabb.min() + scale * ((UVec3::new(x as u32,y as u32,z as u32) * 2) + 1).as_vec3a();
-                    // print!("{}:{}  ", point, float);
-                    print!(" {}", int);
-                } else {
-                    print!("  {}", int);
-                }
-            }
-            println!("");
-        }
-        assert!(false);
-    }
-
-    #[test]
-    fn sphere_sdf() {
-        let func = SdfFunc::sphere(Vec3::ZERO, 6.5);
-        let aabb = Aabb {
-            center: Vec3A::ZERO,
-            half_extents: Vec3A::splat(10.0),
-        };
-        let dimensions = UVec3::new(25, 25, 25);
-        let sdf = create_sdf_from_fn(&func, &aabb, dimensions);
-
-        for y in 0..dimensions.y {
-            for x in 0..dimensions.x {
-                let z = (dimensions.z + 1) / 2;
-                let ix = x * dimensions.z * dimensions.y + y * dimensions.z + z;
-                let byte_ix = (ix * 4) as usize;
-                let float = f32::from_le_bytes(sdf.data[byte_ix..byte_ix + 4].try_into().unwrap());
-                let int = (float - 0.5).ceil() as i32;
-                if int < 0 {
-                    // let point = aabb.min() + scale * ((UVec3::new(x as u32,y as u32,z as u32) * 2) + 1).as_vec3a();
-                    // print!("{}:{}  ", point, float);
-                    print!(" {}", int);
-                } else {
-                    print!("  {}", int);
-                }
-            }
-            println!("");
-        }
-        assert!(false);
-    }
-
-    #[test]
-    fn tri_sdf() {
-        let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
-        mesh.insert_attribute(
-            Mesh::ATTRIBUTE_POSITION,
-            vec![[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [1.0, 1.0, 0.0]],
-        );
-        let aabb = Aabb {
-            center: Vec3A::ZERO,
-            half_extents: Vec3A::splat(3.0),
-        };
-        let dimensions = UVec3::new(5, 5, 5);
-        let sdf = create_sdf_from_mesh_cpu(&mesh, &aabb, dimensions, None);
-        println!("{:?}", aabb);
-        println!("{:?}", sdf.data);
-
-        // let scale = aabb.half_extents / dimensions.as_vec3a();
-
-        for y in 0..dimensions.y {
-            for x in 0..dimensions.x {
-                let z = (dimensions.z + 1) / 2;
-                let ix = x * dimensions.z * dimensions.y + y * dimensions.z + z;
-                let byte_ix = (ix * 4) as usize;
-                let float = f32::from_le_bytes(sdf.data[byte_ix..byte_ix + 4].try_into().unwrap());
-                if float <= 0.0 {
-                    // let point = aabb.min() + scale * ((UVec3::new(x as u32,y as u32,z as u32) * 2) + 1).as_vec3a();
-                    // print!("{}:{}  ", point, float);
-                    print!("x");
-                } else {
-                    print!(" ");
-                }
-            }
-            println!("");
-        }
-    }
-
-    #[test]
-    fn cube_sdf() {
-        let mesh: Mesh = shape::Box::new(1.0, 1.0, 1.0).into();
-        println!("triangles: {}", mesh.indices().unwrap().len() / 3);
-        let aabb = Aabb {
-            center: Vec3A::ZERO,
-            half_extents: Vec3A::splat(1.0),
-        };
-        let dimensions = UVec3::new(24, 24, 24);
-        let sdf = create_sdf_from_mesh_cpu(&mesh, &aabb, dimensions, None);
-        println!("{:?}", aabb);
-        // println!("{:?}", sdf.data);
-
-        // let scale = aabb.half_extents / dimensions.as_vec3a();
-
-        for y in 0..dimensions.y {
-            for x in 0..dimensions.x {
-                let z = (dimensions.z + 1) / 2;
-                let ix = x * dimensions.z * dimensions.y + y * dimensions.z + z;
-                let byte_ix = (ix * 4) as usize;
-                let float = f32::from_le_bytes(sdf.data[byte_ix..byte_ix + 4].try_into().unwrap());
-                if float <= 0.0 {
-                    // let point = aabb.min() + scale * ((UVec3::new(x as u32,y as u32,z as u32) * 2) + 1).as_vec3a();
-                    // print!("{}:{}  ", point, float);
-                    print!("x");
-                } else {
-                    print!(".");
-                }
-            }
-            println!("");
-        }
-        assert!(false);
-    }
+    image.texture_descriptor.usage =
+        TextureUsages::COPY_DST | TextureUsages::STORAGE_BINDING | TextureUsages::TEXTURE_BINDING;
+        
+    image
 }

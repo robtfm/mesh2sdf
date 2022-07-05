@@ -56,10 +56,6 @@ fn sample_distance(pos: vec3<f32>) -> vec3<f32> {
     }
 }
 
-fn sqlen(v: vec3<f32>) -> f32 {
-    return dot(v,v);
-}
-
 [[stage(fragment)]]
 fn fragment(in: FragmentInput) -> [[location(0)]] vec4<f32> {
     let x = in.frag_coord.x / f32(view.width) * 2.0 - 1.0;

@@ -43,33 +43,30 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     let filename = std::env::args().nth(1).unwrap_or("teapot".into());
 
     let scene = asset_server.load(format!("gltf/{}.glb#Scene0", filename).as_str());
-    commands.spawn_bundle(SceneBundle {
-        scene,
-        transform: Transform::from_xyz(3.0, 0.5, -5.0),
-        ..Default::default()
-    });
-
     commands
-        .spawn_bundle(Camera3dBundle {
-            transform: Transform::from_xyz(10.0, 10.0, 10.0).looking_at(Vec3::ZERO, Vec3::Y),
-            ..Default::default()
-        })
-        .insert(CameraController::default());
+        .spawn_bundle(TransformBundle::default())
+        .insert(Rotate)
+        .with_children(|p| {
+            p.spawn_bundle(SceneBundle {
+                scene,
+                ..Default::default()
+            });
+        });
 }
 
 fn system(
     mut commands: Commands,
-    mesh_ents: Query<(Entity, &Handle<Mesh>, &GlobalTransform), Without<Sdf>>,
+    mesh_ents: Query<(Entity, &Handle<Mesh>), Without<Sdf>>,
     meshes: ResMut<Assets<Mesh>>,
     mut images: ResMut<Assets<Image>>,
     mut render_sdfs: ResMut<Assets<SdfMaterial>>,
 ) {
-    for (ent, h, transform) in mesh_ents.iter() {
-        if transform.translation == Vec3::ZERO {
-            continue;
-        }
+    for (ent, h) in mesh_ents.iter() {
         if let Some(mesh) = meshes.get(h) {
-            println!("triangles: {}", mesh.indices().unwrap().len() / 3);
+            println!("triangles: {}", match mesh.indices() {
+                Some(i) => i.len(),
+                None => mesh.attribute(Mesh::ATTRIBUTE_POSITION).unwrap().len(),
+            } / 3);
             let mut aabb = mesh.compute_aabb().unwrap();
             aabb.half_extents *= 1.1;
             println!("aabb: {:?}", aabb);
@@ -83,33 +80,6 @@ fn system(
             let end = std::time::Instant::now();
             println!("{:?}", end - start);
 
-            // let mut p = true;
-
-            // for x in 0..dimensions.x {
-            //     for y in 0..dimensions.y {
-            //         for z in 0..dimensions.z {
-            //             let ix =
-            //                 z * dimensions.x * dimensions.y + (dimensions.y - y - 1) * dimensions.x + x;
-            //             let byte_ix = (ix * 4) as usize;
-            //             let float =
-            //                 f32::from_le_bytes(sdf.data[byte_ix..byte_ix + 4].try_into().unwrap());
-            //             if float <= 0.0 {
-            //                 if z > 54 || p { 
-            //                     // println!("BAD: {:?}: {}", [x, y, z], float);
-            //                     p = false;
-            //                     // assert!(false);
-            //                 }
-            //                 // let point = aabb.min() + scale * ((UVec3::new(x as u32,y as u32,z as u32) * 2) + 1).as_vec3a();
-            //                 // print!("{}:{}  ", point, float);
-            //                 print!("x");
-            //             } else {
-            //                 print!(" ");
-            //             }
-            //         }
-            //         println!("");
-            //     }
-            // }
-
             let image = images.add(sdf);
             let render = render_sdfs.add(SimpleTextureMaterial(SdfMaterialSpec {
                 aabb: aabb.clone(),
@@ -121,6 +91,13 @@ fn system(
                 // step_color: Color::NONE,
                 ..Default::default()
             }));
+
+            commands
+                .spawn_bundle(Camera3dBundle {
+                    transform: Transform::from_translation((aabb.center + aabb.half_extents * 2.0).into()).looking_at(aabb.center.into(), Vec3::Y),
+                    ..Default::default()
+                })
+                .insert(CameraController::default());
 
             commands
                 .entity(ent)
@@ -152,8 +129,11 @@ fn toggle(
     }
 }
 
+#[derive(Component)]
+struct Rotate;
+
 fn rotate(
-    mut q: Query<&mut Transform, (With<Handle<Mesh>>, With<Handle<StandardMaterial>>)>,
+    mut q: Query<&mut Transform, With<Rotate>>,
     time: Res<Time>,
 ) {
     for mut t in q.iter_mut() {
