@@ -2,7 +2,7 @@ use bevy::{
     diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin},
     // log::LogSettings,
     prelude::*,
-    window::PresentMode,
+    window::PresentMode, math::Vec3A,
 };
 use mesh2sdf::{shader::SimpleTextureMaterial, create_sdf_image, compute::{SdfComputeRequests, SdfComputePlugin}};
 use mesh2sdf::{
@@ -33,11 +33,14 @@ fn main() {
     });
 
     app.add_startup_system(setup);
+    app.add_system(setup_scene_once_loaded);
     app.add_system(system);
     app.add_system(toggle);
     app.add_system(rotate);
     app.run();
 }
+
+struct Animations(Vec<Handle<AnimationClip>>);
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     let filename = std::env::args().nth(1).unwrap_or("teapot".into());
@@ -45,13 +48,30 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     let scene = asset_server.load(format!("gltf/{}.glb#Scene0", filename).as_str());
     commands
         .spawn_bundle(TransformBundle::default())
-        .insert(Rotate)
+        // .insert(Rotate)
         .with_children(|p| {
             p.spawn_bundle(SceneBundle {
                 scene,
                 ..Default::default()
             });
         });
+
+    commands.insert_resource(Animations(vec![
+        asset_server.load(format!("gltf/{}.glb#Animation0", filename).as_str()),
+    ]));
+}
+
+fn setup_scene_once_loaded(
+    animations: Res<Animations>,
+    mut player: Query<&mut AnimationPlayer>,
+    mut done: Local<bool>,
+) {
+    if !*done {
+        if let Ok(mut player) = player.get_single_mut() {
+            player.play(animations.0[0].clone_weak()).repeat();
+            *done = true;
+        }
+    }
 }
 
 fn system(
@@ -69,7 +89,9 @@ fn system(
                 Some(i) => i.len(),
                 None => mesh.attribute(Mesh::ATTRIBUTE_POSITION).unwrap().len(),
             } / 3);
-            let aabb = mesh.compute_aabb().unwrap();
+            let mut aabb = mesh.compute_aabb().unwrap();
+            // todo compute aabb dynamically based on animation data
+            aabb.half_extents += Vec3A::new(20.0, 0.0, 10.0);
             println!("aabb: {:?}", aabb);
             let max_dim = aabb.half_extents.max_element();
             let mult = std::env::args().nth(2).unwrap_or("4".into()).parse::<u32>().unwrap();
@@ -80,9 +102,9 @@ fn system(
             let render = render_sdfs.add(SimpleTextureMaterial(SdfMaterialSpec {
                 aabb: aabb.clone(),
                 image: image.clone(),
-                min_step_size: 0.001,
+                min_step_size: 0.1,
                 hit_threshold: -0.0001,
-                max_step_count: 200,
+                max_step_count: 50,
                 // hit_color: Color::NONE,
                 // step_color: Color::NONE,
                 ..Default::default()

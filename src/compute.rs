@@ -11,7 +11,7 @@ use bevy::{
         render_graph::{self, RenderGraph},
         render_resource::{*, encase::private::WriteInto},
         renderer::{RenderContext, RenderDevice},
-        RenderApp, RenderStage, extract_component::{ExtractComponentPlugin, ExtractComponent},
+        RenderApp, RenderStage, extract_component::{ExtractComponentPlugin, ExtractComponent}, mesh::skinning::{SkinnedMesh, SkinnedMeshInverseBindposes},
     },
     utils::HashMap,
 };
@@ -131,10 +131,12 @@ fn preprocess_sdfs(
     meshes: Res<Assets<Mesh>>,
     images: Res<Assets<Image>>,
     reqs: Res<SdfComputeRequests>,
-    sdfs: Query<(&Sdf, &Handle<Mesh>)>,
+    sdfs: Query<(&Sdf, &Handle<Mesh>, Option<&SkinnedMesh>)>,
+    inverse_bindposes: Res<Assets<SkinnedMeshInverseBindposes>>,
+    joint_transforms: Query<&GlobalTransform>,
 ) {
     for ent in reqs.0.iter() {
-        let Ok((sdf, mesh)) = sdfs.get(*ent) else {
+        let Ok((sdf, mesh, maybe_skin)) = sdfs.get(*ent) else {
             warn!("can't get sdf + mesh handle");
             continue;
         };
@@ -156,9 +158,17 @@ fn preprocess_sdfs(
             scale: (sdf.aabb.half_extents * 2.0 / (dimensions - 1).as_vec3a()).into(),
         };
 
-        // println!("scale: {}", uniform.scale);
+        let preprocessed = match maybe_skin {
+            Some(skin) => {
+                let Some(poses) = inverse_bindposes.get(&skin.inverse_bindposes) else {panic!("no bindposes")};
 
-        let preprocessed = preprocess_mesh_for_sdf(mesh);
+                let joints = skin.joints.iter().zip(poses.iter()).map(|(joint_ent, pose)| {
+                    joint_transforms.get(*joint_ent).unwrap().compute_affine() * *pose
+                }).collect::<Vec<_>>();
+                preprocess_mesh_for_sdf(mesh, Some(&joints))
+            }
+            _ => preprocess_mesh_for_sdf(mesh, None)
+        };
 
         let vertices = SdfVerticesData {
             data: preprocessed.vertices.into_iter().map(|(v,n)| [Vec3::from(v), Vec3::from(n)]).collect(),

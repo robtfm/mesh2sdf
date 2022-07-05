@@ -56,15 +56,36 @@ pub struct PreprocessedMeshData {
 }
 
 pub fn preprocess_mesh_for_sdf(
-    mesh: &Mesh
+    mesh: &Mesh,
+    joints: Option<&[Mat4]>,
 ) -> PreprocessedMeshData {
     let Some(VertexAttributeValues::Float32x3(values)) = mesh.attribute(Mesh::ATTRIBUTE_POSITION) else {
         panic!("bad mesh");
     };
 
-    let values: Vec<[f32; 3]> = match mesh.indices() {
-        Some(ix) => ix.iter().map(|ix| values[ix]).collect(),
-        None => values.iter().copied().collect(),
+
+    let weight_with_joints = |v: Vec3, index: usize| -> Vec3 {
+        let Some(VertexAttributeValues::Float32x4(joint_weights)) = mesh.attribute(Mesh::ATTRIBUTE_JOINT_WEIGHT) else {panic!("bad joint weights!")};
+        let Some(VertexAttributeValues::Uint16x4(joint_indexes)) = mesh.attribute(Mesh::ATTRIBUTE_JOINT_INDEX) else {panic!("bad joint indexes!")};
+        let joints = joints.unwrap();
+        let indexes = joint_indexes[index];
+        let weights = joint_weights[index];
+        let mat = joints[indexes[0] as usize] * weights[0] + joints[indexes[1] as usize] * weights[1] + joints[indexes[2] as usize] * weights[2] + joints[indexes[3] as usize] * weights[3];
+        let res = mat * v.extend(1.0);
+        res.truncate() / res.w
+    };
+
+    let weight = |v: Vec3, index: usize| -> Vec3 {
+        if joints.is_some() {
+            weight_with_joints(v, index)
+        } else {
+            v
+        }
+    };
+
+    let values: Vec<Vec3> = match mesh.indices() {
+        Some(ix) => ix.iter().map(|ix| weight(Vec3::from(values[ix]), ix)).collect(),
+        None => values.iter().enumerate().map(|(ix, v)| weight(Vec3::from(*v), ix)).collect(),
     };
 
     let mut vertices = BTreeMap::<OrderedVec, Vec3A>::new();
@@ -124,7 +145,7 @@ pub fn create_sdf_from_mesh_cpu(mesh: &Mesh, aabb: &Aabb, dimension: UVec3, debu
         "`sdf generation can only work on `TriangleList`s"
     );
 
-    let preprocessed = preprocess_mesh_for_sdf(mesh);
+    let preprocessed = preprocess_mesh_for_sdf(mesh, None);
 
     let compute_distance = |point: Vec3A, debug: bool| -> f32 {
         if debug {
