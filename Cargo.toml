@@ -6,4 +6,8 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-bevy = { path = "../bevy" }
+# atlas3d = { path = "../atlas3d" }
+atlas3d = { git = "https://github.com/robtfm/atlas3d" }
+bevy = { git = "https://github.com/robtfm/bevy", branch="sdfao_working" }
+# bevy = { path = "../bevy" }
+# bevy = { git = "https://github.com/bevyengine/bevy" }

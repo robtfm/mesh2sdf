@@ -1,0 +1,25 @@
+common
+*    marker for sdf caster (everything can receive)
+*       - optional gen type 
+*           - mesh handle 
+            - primitive(s) 
+            - file/image
+        - update frequency (static / n-frames)
+*       - resolution
+*    generate sdfs into shared atlas
+     cluster sdfs for fast access
+     util to gen / save pregenerated sdfs
+
+ao
+*    tap sdfs for ambient
+*       - diffuse
+*       - specular
+     config for ambient
+        - distances
+        - strengths
+        - enable/disable for receiver?
+     amortise cast costs ...
+     fix animated gltfs (fox is broken, something about scale or ..?)
+
+soft shadows
+        - everything

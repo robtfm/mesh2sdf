@@ -3,26 +3,26 @@
 #import bevy_pbr::mesh_functions
 
 struct Uniform {
-    aabb_min: vec3<f32>;
-    aabb_extents: vec3<f32>;
-    base_color: vec4<f32>;
-    hit_color: vec4<f32>;
-    step_color: vec4<f32>;
-    distance_color: vec4<f32>;
-    min_step_size: f32;
-    hit_threshold: f32;
-    max_step_count: u32;
+    position: vec3<f32>,
+    size: vec3<f32>,
+    scale: f32,    
+    aabb_min: vec3<f32>,
+    aabb_extents: vec3<f32>,
+    base_color: vec4<f32>,
+    hit_color: vec4<f32>,
+    step_color: vec4<f32>,
+    distance_color: vec4<f32>,
+    min_step_size: f32,
+    hit_threshold: f32,
+    max_step_count: u32,
 };
 
-[[group(1), binding(0)]]
+@group(1) @binding(0)
 var<uniform> material: Uniform;
-[[group(1), binding(1)]]
-var sdf_texture: texture_3d<f32>;
-[[group(1), binding(2)]]
-var sdf_sampler: sampler;
 
 struct FragmentInput {
-    [[builtin(position)]] frag_coord: vec4<f32>;
+    @builtin(position) frag_coord: vec4<f32>,
+    #import bevy_pbr::mesh_vertex_output
 };
 
 fn isnan(x: f32) -> bool {
@@ -37,27 +37,28 @@ fn sample_distance(pos: vec3<f32>) -> vec3<f32> {
     let nearest = clamp(local_position, material.aabb_min, material.aabb_min + material.aabb_extents);
 
     let coords = clamp((local_position - material.aabb_min) / material.aabb_extents, vec3<f32>(0.0), vec3<f32>(1.0)); // 0-1
-    let sample = textureSample(sdf_texture, sdf_sampler, coords).r;
+    let atlas_coords = material.position + coords * material.size;
+    let inner_distance = textureSample(sdf_atlas, sdf_sampler, atlas_coords).r;
 
     let offset = nearest - local_position;
     let distance_to_aabb_sq = dot(offset, offset);        
 
     if (distance_to_aabb_sq == 0.0) {
         // inside the volume
-        return vec3<f32>(sample, 0.0, 0.0);
+        return vec3<f32>(inner_distance * material.scale, 0.0, 0.0);
     } else {
-        if (sample < 0.0) {
+        if (inner_distance < 0.0) {
             return vec3<f32>(0.0, 1.0, 0.0);
             // error, negative on edge
         }
         // worst case assume right angle
-        let sample = max(sample, 0.0);
-        return vec3<f32>(sqrt(distance_to_aabb_sq + sample * sample), 0.0, 0.0);
+        let inner_distance = max(inner_distance, 0.0) * material.scale;
+        return vec3<f32>(sqrt(distance_to_aabb_sq + inner_distance * inner_distance), 0.0, 0.0);
     }
 }
 
-[[stage(fragment)]]
-fn fragment(in: FragmentInput) -> [[location(0)]] vec4<f32> {
+@fragment
+fn fragment(in: FragmentInput) -> @location(0) vec4<f32> {
     let x = in.frag_coord.x / f32(view.width) * 2.0 - 1.0;
     let y = in.frag_coord.y / f32(view.height) * -2.0 + 1.0;
 

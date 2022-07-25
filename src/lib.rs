@@ -1,312 +1,272 @@
-#![feature(let_else, slice_as_chunks, bool_to_option)]
-pub mod controller;
-pub mod render;
-pub mod shader;
+#![feature(let_else, slice_as_chunks)]
+pub mod animated_aabb;
 pub mod compute;
+pub mod controller;
+pub mod cpu;
+pub mod debug_render;
+mod sdf_view_bindings;
+pub mod utils;
 
-use std::{collections::BTreeMap};
-
+use animated_aabb::AnimatedAabbBuilder;
+use atlas3d::AtlasPage;
 use bevy::{
-    math::Vec3A,
+    asset::load_internal_asset,
+    pbr::{queue_mesh_view_bind_groups, PBR_AMBIENT_HANDLE},
     prelude::*,
     render::{
-        mesh::{PrimitiveTopology, VertexAttributeValues},
-        primitives::{Aabb, Plane},
-        render_resource::{Extent3d, TextureDimension, SamplerDescriptor, AddressMode, FilterMode, TextureUsages}, texture::ImageSampler,
-    }, utils::FloatOrd,
+        extract_component::{ExtractComponent, ExtractComponentPlugin},
+        extract_resource::{ExtractResource, ExtractResourcePlugin},
+        mesh::skinning::SkinnedMesh,
+        primitives::Aabb,
+        view::VisibilitySystems::CheckVisibility,
+        RenderApp, RenderStage,
+    },
 };
+use compute::{SdfComputePlugin, WORKGROUP_SIZE};
+use utils::create_sdf_image;
+
+use crate::sdf_view_bindings::queue_sdf_view_bindings;
 
 #[derive(Component, Clone)]
 pub struct Sdf {
-    pub image: Handle<Image>,
+    pub mode: SdfGenMode,
+    pub options: SdfOptions,
     pub aabb: Aabb,
 }
 
-#[derive(PartialEq, Clone, Copy, Debug)]
-struct OrderedVec(Vec3A);
-
-impl Eq for OrderedVec {}
-impl Ord for OrderedVec {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        FloatOrd(self.0.x).cmp(&FloatOrd(other.0.x))
-            .then(FloatOrd(self.0.y).cmp(&FloatOrd(other.0.y)))
-            .then(FloatOrd(self.0.z).cmp(&FloatOrd(other.0.z)))
+impl Default for Sdf {
+    fn default() -> Self {
+        Self {
+            mode: SdfGenMode::FromPrimaryMesh,
+            options: Default::default(),
+            aabb: Default::default(),
+        }
     }
 }
 
-impl PartialOrd for OrderedVec {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(&other))
+impl Sdf {
+    pub fn new_scaled(scale: f32) -> Self {
+        Self {
+            options: SdfOptions {
+                scale_multiplier: scale,
+                ..Default::default()
+            },
+            ..Default::default()
+        }
     }
 }
 
-#[derive(Debug)]
-struct TriData {
-    a: Vec3A,
-    b: Vec3A,
-    c: Vec3A,
-    inv_area: f32,
-    plane: Plane,
-}
+impl ExtractComponent for Sdf {
+    type Query = &'static Self;
+    type Filter = ();
 
-pub struct PreprocessedMeshData {
-    vertices: Vec<(Vec3A, Vec3A)>,
-    edges: Vec<((Vec3A, Vec3A), Vec3A)>,
-    triangles: Vec::<TriData>,
-}
-
-pub fn preprocess_mesh_for_sdf(
-    mesh: &Mesh,
-    joints: Option<&[Mat4]>,
-) -> PreprocessedMeshData {
-    let Some(VertexAttributeValues::Float32x3(values)) = mesh.attribute(Mesh::ATTRIBUTE_POSITION) else {
-        panic!("bad mesh");
-    };
-
-
-    let weight_with_joints = |v: Vec3, index: usize| -> Vec3 {
-        let Some(VertexAttributeValues::Float32x4(joint_weights)) = mesh.attribute(Mesh::ATTRIBUTE_JOINT_WEIGHT) else {panic!("bad joint weights!")};
-        let Some(VertexAttributeValues::Uint16x4(joint_indexes)) = mesh.attribute(Mesh::ATTRIBUTE_JOINT_INDEX) else {panic!("bad joint indexes!")};
-        let joints = joints.unwrap();
-        let indexes = joint_indexes[index];
-        let weights = joint_weights[index];
-        let mat = joints[indexes[0] as usize] * weights[0] + joints[indexes[1] as usize] * weights[1] + joints[indexes[2] as usize] * weights[2] + joints[indexes[3] as usize] * weights[3];
-        let res = mat * v.extend(1.0);
-        res.truncate() / res.w
-    };
-
-    let weight = |v: Vec3, index: usize| -> Vec3 {
-        if joints.is_some() {
-            weight_with_joints(v, index)
-        } else {
-            v
-        }
-    };
-
-    let values: Vec<Vec3> = match mesh.indices() {
-        Some(ix) => ix.iter().map(|ix| weight(Vec3::from(values[ix]), ix)).collect(),
-        None => values.iter().enumerate().map(|(ix, v)| weight(Vec3::from(*v), ix)).collect(),
-    };
-
-    let mut vertices = BTreeMap::<OrderedVec, Vec3A>::new();
-    let mut edges = BTreeMap::<(OrderedVec, OrderedVec), Vec3A>::new();
-    let mut triangles = Vec::<TriData>::new();
-
-    for tri in values.chunks_exact(3) {
-        let a = OrderedVec(tri[0].into());
-        let b = OrderedVec(tri[1].into());
-        let c = OrderedVec(tri[2].into());
-
-        let normal = (b.0 - a.0).cross(c.0 - b.0).normalize();
-
-        // sort
-        let mut sorted = vec![a, b, c];
-        sorted.sort();
-        let mut iter = sorted.into_iter();
-        let (a, b, c) = (iter.next().unwrap(), iter.next().unwrap(), iter.next().unwrap());
-
-        let ab_len = (b.0 - a.0).length();
-        let ac_len = (c.0 - a.0).length();
-        let bc_len = (c.0 - b.0).length();
-
-        let a_angle = tri_angle(bc_len, ab_len, ac_len);
-        let b_angle = tri_angle(ac_len, ab_len, bc_len);
-        let c_angle = tri_angle(ab_len, ac_len, bc_len);
-
-        *vertices.entry(a).or_default() += normal * a_angle;
-        *vertices.entry(b).or_default() += normal * b_angle;
-        *vertices.entry(c).or_default() += normal * c_angle;
-
-        *edges.entry((a,b)).or_default() += normal;
-        *edges.entry((a,c)).or_default() += normal;
-        *edges.entry((b,c)).or_default() += normal;
-
-        let plane = Plane::new(normal.extend(-(a.0).dot(normal)));
-        let inv_area = (b.0 - a.0).cross(c.0 - a.0).dot(plane.normal()).recip();
-
-        triangles.push(TriData { a: a.0, b: b.0, c: c.0, inv_area, plane });
-    }
-
-    fn tri_angle(opp: f32, a: f32, b: f32) -> f32 {
-        ((a*a + b*b - opp*opp) / (2.0 * a * b)).acos()
-    }
-
-    PreprocessedMeshData { 
-        vertices: vertices.into_iter().map(|(ov, n)| (ov.0, n)).collect(), 
-        edges: edges.into_iter().map(|((ov0, ov1), n)| ((ov0.0, ov1.0), n)).collect(),
-        triangles 
+    fn extract_component(item: bevy::ecs::query::QueryItem<Self::Query>) -> Self {
+        item.clone()
     }
 }
 
-pub fn create_sdf_from_mesh_cpu(mesh: &Mesh, aabb: &Aabb, dimension: UVec3, debug: Option<UVec3>) -> Image {
-    let start = std::time::Instant::now();
-    assert!(
-        matches!(mesh.primitive_topology(), PrimitiveTopology::TriangleList),
-        "`sdf generation can only work on `TriangleList`s"
-    );
+#[derive(Clone)]
+pub enum SdfGenMode {
+    // generate the sdf from the mesh attached to the owning entity
+    FromPrimaryMesh,
+    // use a precomputed sdf texture
+    Precomputed(Handle<Image>),
+    // use a custom mesh to generate the sdf (can be simplified, etc)
+    FromCustomMesh(Handle<Mesh>),
+}
 
-    let preprocessed = preprocess_mesh_for_sdf(mesh, None);
+#[derive(Clone)]
+pub struct SdfOptions {
+    // specify the scale multiplier
+    // by default, sdfs are generated with dimensions approximately matching the SdfPlugin::unit_size
+    // this setting allows scaling of those dimensions on this entity for precision or speed
+    pub scale_multiplier: f32,
+    // buffer size (defaults to global buffer_size)
+    pub buffer_size: Option<f32>,
+}
 
-    let compute_distance = |point: Vec3A, debug: bool| -> f32 {
-        if debug {
-            println!("point: {}", point);
+impl Default for SdfOptions {
+    fn default() -> Self {
+        Self {
+            scale_multiplier: 1.0,
+            buffer_size: None,
         }
+    }
+}
 
-        #[derive(Default, Debug)]
-        struct Res {
-            dist_sq: f32,
-            norm: Vec3A,
-            nearest: Vec3A,
+pub struct SdfGlobalSettings {
+    // size of the atlas used for storing all sdfs
+    pub atlas_page_size: UVec3,
+    // generated aabbs will be extended by this amount (divided by the entity's scale)
+    // this should be as large as the ambient tap max distance and the maximum soft shadow cone radius
+    // shadow cone radius depends on light range and cone angle/softness
+    pub buffer_size: f32,
+    // default sdf unit size
+    pub unit_size: f32,
+    // ambient occlusion distance
+    pub ambient_distance: f32,
+}
+
+impl Default for SdfGlobalSettings {
+    fn default() -> Self {
+        Self {
+            // 32mb atlas page
+            atlas_page_size: UVec3::splat(200),
+            buffer_size: 1.0,
+            unit_size: 1.0,
+            ambient_distance: 1.0,
         }
+    }
+}
 
-        let mut best = Res{dist_sq: f32::MAX, ..Default::default()};
+pub struct SdfPlugin;
 
-        for &(v, n) in preprocessed.vertices.iter() {
-            let dist_sq = point.distance_squared(v);
-            if dist_sq < best.dist_sq {
-                best.dist_sq = dist_sq;
-                best.norm = n;
-                best.nearest = v;
-                if debug {println!("vertex -- {}\n{:?}", v, best);}
+impl SdfPlugin {
+    pub fn add_view_bindings(app: &mut App) {
+        sdf_view_bindings::add_view_bindings(app)
+    }
+}
+
+impl Plugin for SdfPlugin {
+    fn build(&self, app: &mut App) {
+        // settings
+        let settings = app
+            .world
+            .get_resource_or_insert_with(|| SdfGlobalSettings::default());
+        let page_size = settings.atlas_page_size;
+
+        // create atlas resource
+        let image = create_sdf_image(page_size);
+        let image = app.world.resource_mut::<Assets<Image>>().add(image);
+        app.insert_resource(SdfAtlas {
+            page: AtlasPage::new(page_size),
+            image,
+            need_computing: Vec::new(),
+        });
+
+        // and extract it
+        app.add_plugin(ExtractResourcePlugin::<SdfAtlas>::default());
+
+        // system to generate required sdfs
+        app.add_system_to_stage(
+            CoreStage::PostUpdate,
+            queue_sdfs.after(CheckVisibility).before("preprocess sdfs"),
+        );
+
+        // extract sdfs
+        app.add_plugin(ExtractComponentPlugin::<Sdf>::default());
+
+        // compute pass
+        app.add_plugin(SdfComputePlugin);
+
+        // add view bindings
+        app.sub_app_mut(RenderApp).add_system_to_stage(
+            RenderStage::Queue,
+            queue_sdf_view_bindings.before(queue_mesh_view_bind_groups),
+        );
+
+        // override occlusion function
+        load_internal_asset!(
+            app,
+            PBR_AMBIENT_HANDLE,
+            "sdf_ambient.wgsl",
+            Shader::from_wgsl
+        );
+    }
+}
+
+#[derive(PartialEq, Eq, Hash, Clone)]
+pub enum SdfAtlasKey {
+    Mesh(Handle<Mesh>),
+    Image(Handle<Image>),
+}
+
+#[derive(Clone, ExtractResource)]
+pub struct SdfAtlas {
+    pub page: AtlasPage<SdfAtlasKey>,
+    pub image: Handle<Image>,
+    pub need_computing: Vec<(Entity, SdfAtlasKey, Aabb)>,
+}
+
+fn sdf_dim(aabb: &Aabb, unit_size: f32, buffer_size: f32) -> UVec3 {
+    ((((aabb.half_extents + buffer_size) * 2.0) / unit_size) / WORKGROUP_SIZE as f32)
+        .ceil()
+        .as_uvec3()
+        * WORKGROUP_SIZE
+}
+
+impl SdfAtlasKey {
+    fn try_from_sdf(sdf: &Sdf, maybe_mesh: Option<&Handle<Mesh>>) -> Option<SdfAtlasKey> {
+        Some(match &sdf.mode {
+            SdfGenMode::FromPrimaryMesh => match maybe_mesh {
+                Some(h) => Self::Mesh(h.clone_weak()),
+                None => return None,
+            },
+            SdfGenMode::Precomputed(h) => Self::Image(h.clone_weak()),
+            SdfGenMode::FromCustomMesh(h) => Self::Mesh(h.clone_weak()),
+        })
+    }
+}
+
+fn queue_sdfs(
+    sdf_settings: Res<SdfGlobalSettings>,
+    mut items: Query<(
+        Entity,
+        &mut Sdf,
+        &GlobalTransform,
+        &ComputedVisibility,
+        &Aabb,
+        Option<&SkinnedMesh>,
+        Option<&Handle<Mesh>>,
+    )>,
+    aabb_builder: AnimatedAabbBuilder,
+    mut atlas: ResMut<SdfAtlas>,
+) {
+    atlas.page.remove_all();
+    atlas.need_computing.clear();
+    for (ent, mut sdf, _g_trans, vis, aabb, maybe_skin, maybe_mesh) in items.iter_mut() {
+        let Some(key) = SdfAtlasKey::try_from_sdf(&sdf, maybe_mesh) else {continue};
+
+        let mut use_aabb = aabb.clone();
+
+        if maybe_skin.is_some() {
+            // purge previous instance of animated items (no point in clogging up the atlas)
+            atlas.page.purge(&key);
+
+            if vis.is_visible() {
+                // update animated item aabbs
+                use_aabb = match sdf.mode {
+                    SdfGenMode::FromPrimaryMesh => aabb_builder.animated_aabb(ent).unwrap(),
+                    SdfGenMode::Precomputed(_) => {
+                        panic!("can't use precomputed sdf with animated meshes")
+                    }
+                    SdfGenMode::FromCustomMesh(ref h) => {
+                        aabb_builder.animated_aabb_for_mesh(ent, h).unwrap()
+                    }
+                };
             }
         }
 
-        for &((v0, v1), n) in preprocessed.edges.iter() {
-            let line = v1 - v0;
-            let line_len_sq = line.length_squared();
-            let intercept = f32::clamp((point - v0).dot(line), 0.0, line_len_sq);
-            if intercept < 0.001 || intercept > line_len_sq * 0.999 {
-                continue;
-            }
+        let buffer_size = sdf.options.buffer_size.unwrap_or(sdf_settings.buffer_size);
+        use_aabb.half_extents += buffer_size;
 
-            let nearest = v0 + line * (intercept / line_len_sq);
-            let dist_sq = point.distance_squared(nearest);
-            if dist_sq < best.dist_sq {
-                best.dist_sq = dist_sq;
-                best.norm = n;
-                best.nearest = nearest;
-                if debug {println!("edge -- {}-{}\n{:?}", v0, v1, best);}
-            }
-        }
+        if vis.is_visible() {
+            let dims = sdf_dim(
+                &use_aabb,
+                sdf_settings.unit_size / sdf.options.scale_multiplier,
+                buffer_size,
+            );
+            let res = atlas.page.insert(key.clone(), dims + 1);
 
-        for tri in preprocessed.triangles.iter() {
-            let distance_to_plane = tri.plane.normal_d().dot(point.extend(1.0));
-            let distance_to_plane_sq = distance_to_plane * distance_to_plane;
-            if distance_to_plane_sq > best.dist_sq {
-                continue;
-            }
-
-            let point_on_plane = point - distance_to_plane * tri.plane.normal();
-            // barycentric coords
-            let u = (tri.c - tri.b)
-                .cross(point_on_plane - tri.b)
-                .dot(tri.plane.normal())
-                * tri.inv_area;
-            let v = (tri.a - tri.c)
-                .cross(point_on_plane - tri.c)
-                .dot(tri.plane.normal())
-                * tri.inv_area;
-            let w = 1.0 - u - v;
-
-            if u.is_sign_positive() && v.is_sign_positive() && w.is_sign_positive() {
-                best.dist_sq = distance_to_plane_sq;
-                best.norm = tri.plane.normal();
-                best.nearest = point_on_plane;
-                if debug {println!("tri -- {:?}\n{:?}", tri, best);}
-            }
-        }
-
-        let direction = point - best.nearest;
-        let outside = direction.dot(best.norm) >= 0.0;
-
-        if debug {println!("dist {}", best.dist_sq.sqrt() * direction.dot(best.norm).signum());}
-
-        if outside {
-            best.dist_sq.sqrt()
-        } else {
-            -best.dist_sq.sqrt()
-        }
-    };
-
-    let scale = aabb.half_extents * 2.0 / (dimension - 1).as_vec3a();
-
-    let mut data: Vec<u8> = Vec::new();
-    data.resize((4 * dimension.x * dimension.y * dimension.z) as usize, 0);
-    let mut chunks = data.as_chunks_mut::<4>().0.iter_mut();
-
-    let prep = std::time::Instant::now();
-
-    for z in 0..dimension.z {
-        for y in 0..dimension.y {
-            for x in 0..dimension.x {
-                let point = aabb.min() + scale * UVec3::new(x, y, z).as_vec3a();
-
-                if Some(UVec3::new(x, y, z)) == debug {
-                    compute_distance(point, true);
+            match res {
+                atlas3d::Slot::New(_) => {
+                    println!("queue: {}", dims);
+                    atlas.need_computing.push((ent, key, use_aabb.clone()));
+                    sdf.aabb = use_aabb;
                 }
-
-                let dist = compute_distance(point, false);
-
-                let chunk = chunks.next().unwrap();
-                chunk.copy_from_slice(&dist.to_le_bytes());
+                atlas3d::Slot::NoFit => warn!("can't fit {} into atlas", dims + 1),
+                atlas3d::Slot::Existing(_) => (),
             }
         }
     }
-
-    let process = std::time::Instant::now();
-
-    let mut image = Image::new(
-        Extent3d {
-            width: dimension.x,
-            height: dimension.y,
-            depth_or_array_layers: dimension.z,
-        },
-        TextureDimension::D3,
-        data,
-        bevy::render::render_resource::TextureFormat::R32Float,
-    );
-
-    image.sampler_descriptor = ImageSampler::Descriptor(SamplerDescriptor{
-        address_mode_u: AddressMode::ClampToEdge,
-        address_mode_v: AddressMode::ClampToEdge,
-        address_mode_w: AddressMode::ClampToEdge,
-        mag_filter: FilterMode::Linear,
-        min_filter: FilterMode::Linear,
-        mipmap_filter: FilterMode::Linear,
-        ..Default::default()
-    });
-
-    let res = std::time::Instant::now();
-
-    println!("prep: {:?}, proc: {:?}, res: {:?}, tot: {:?}", prep - start, process - prep, res - process, res - start);
-
-    image
-}
-
-pub fn create_sdf_image(dimension: UVec3) -> Image {
-    let mut image = Image::new_fill(
-        Extent3d {
-            width: dimension.x,
-            height: dimension.y,
-            depth_or_array_layers: dimension.z,
-        },
-        TextureDimension::D3,
-        &[0;4],
-        bevy::render::render_resource::TextureFormat::R32Float,
-    );
-
-    image.sampler_descriptor = ImageSampler::Descriptor(SamplerDescriptor{
-        address_mode_u: AddressMode::ClampToEdge,
-        address_mode_v: AddressMode::ClampToEdge,
-        address_mode_w: AddressMode::ClampToEdge,
-        mag_filter: FilterMode::Linear,
-        min_filter: FilterMode::Linear,
-        mipmap_filter: FilterMode::Linear,
-        ..Default::default()
-    });
-
-    image.texture_descriptor.usage =
-        TextureUsages::COPY_DST | TextureUsages::STORAGE_BINDING | TextureUsages::TEXTURE_BINDING;
-        
-    image
 }
