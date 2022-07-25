@@ -15,7 +15,7 @@ use bevy::{
     },
 };
 
-use crate::{Sdf, SdfAtlas, SdfAtlasKey};
+use crate::{Sdf, SdfAtlas, SdfAtlasKey, SdfGlobalSettings};
 
 #[derive(ShaderType, AsBindGroup)]
 struct SdfViewUniform {
@@ -95,6 +95,7 @@ pub(crate) fn add_view_bindings(app: &mut App) {
 }
 
 pub(crate) fn queue_sdf_view_bindings(
+    settings: Res<SdfGlobalSettings>,
     mut view_bindings: ResMut<UserViewBindingsEntries>,
     atlas: Res<SdfAtlas>,
     render_device: Res<RenderDevice>,
@@ -105,7 +106,7 @@ pub(crate) fn queue_sdf_view_bindings(
     *frame = (*frame + 1) % 1000;
 
     let view_uniform = SdfViewUniform {
-        ao_distances: Vec3::new(0.1, 0.2, 0.3),
+        ao_distances: Vec3::new(settings.ambient_distance / 3.0, settings.ambient_distance * 2.0 / 3.0, settings.ambient_distance),
         ao_sin_angle: 0.5,
     };
 
@@ -123,9 +124,12 @@ pub(crate) fn queue_sdf_view_bindings(
         SdfAtlasKey::try_from_sdf(sdf, maybe_mesh)
             .and_then(|key| atlas.page.get(&key))
             .and_then(|info| {
-                let scale = Transform::from_matrix(mesh_uniform.transform).scale.x;
+                let (scale, transform) = match sdf.skinned {
+                    true => (1.0, Mat4::IDENTITY),
+                    false => (Transform::from_matrix(mesh_uniform.transform).scale.x, mesh_uniform.inverse_transpose_model.transpose()),
+                };
                 Some(SdfHeader {
-                    transform: mesh_uniform.inverse_transpose_model.transpose(),
+                    transform,
                     aabb_min: sdf.aabb.min().into(),
                     aabb_size: (sdf.aabb.half_extents * 2.0).into(),
                     atlas_position: info.position.as_vec3() / atlas.page.dim.as_vec3(),

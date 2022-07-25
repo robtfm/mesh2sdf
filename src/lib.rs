@@ -32,6 +32,7 @@ pub struct Sdf {
     pub mode: SdfGenMode,
     pub options: SdfOptions,
     pub aabb: Aabb,
+    pub skinned: bool,
 }
 
 impl Default for Sdf {
@@ -40,6 +41,7 @@ impl Default for Sdf {
             mode: SdfGenMode::FromPrimaryMesh,
             options: Default::default(),
             aabb: Default::default(),
+            skinned: Default::default(),
         }
     }
 }
@@ -94,6 +96,7 @@ impl Default for SdfOptions {
     }
 }
 
+#[derive(Clone, ExtractResource)]
 pub struct SdfGlobalSettings {
     // size of the atlas used for storing all sdfs
     pub atlas_page_size: UVec3,
@@ -134,6 +137,9 @@ impl Plugin for SdfPlugin {
             .world
             .get_resource_or_insert_with(|| SdfGlobalSettings::default());
         let page_size = settings.atlas_page_size;
+
+        // extract em
+        app.add_plugin(ExtractResourcePlugin::<SdfGlobalSettings>::default());
 
         // create atlas resource
         let image = create_sdf_image(page_size);
@@ -228,6 +234,7 @@ fn queue_sdfs(
         let Some(key) = SdfAtlasKey::try_from_sdf(&sdf, maybe_mesh) else {continue};
 
         let mut use_aabb = aabb.clone();
+        sdf.skinned = maybe_skin.is_some();
 
         if maybe_skin.is_some() {
             // purge previous instance of animated items (no point in clogging up the atlas)
@@ -260,7 +267,7 @@ fn queue_sdfs(
 
             match res {
                 atlas3d::Slot::New(_) => {
-                    println!("queue: {}", dims);
+                    // println!("queue: {}", dims);
                     atlas.need_computing.push((ent, key, use_aabb.clone()));
                     sdf.aabb = use_aabb;
                 }

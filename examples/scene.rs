@@ -26,9 +26,9 @@ fn main() {
 
     app.insert_resource(SdfGlobalSettings {
         atlas_page_size: UVec3::splat(400),
-        buffer_size: 0.3,
-        unit_size: 0.1,
-        ambient_distance: 0.3,
+        buffer_size: 15.0,
+        unit_size: 5.0,
+        ambient_distance: 15.0,
     });
 
     SdfPlugin::add_view_bindings(&mut app);
@@ -61,7 +61,7 @@ fn setup(
     // ground plane
     commands
         .spawn_bundle(PbrBundle {
-            mesh: meshes.add(Mesh::from(shape::Plane { size: 10.0 })),
+            mesh: meshes.add(Mesh::from(shape::Plane { size: 500.0 })),
             material: materials.add(StandardMaterial {
                 base_color: Color::WHITE,
                 perceptual_roughness: 1.0,
@@ -72,11 +72,11 @@ fn setup(
         .insert(Sdf::new_scaled(1.0)); // min size
 
     // left wall
-    let mut transform = Transform::from_xyz(2.5, 2.5, 0.0);
+    let mut transform = Transform::from_xyz(125.0, 125.0, 0.0);
     transform.rotate_z(std::f32::consts::FRAC_PI_2);
     commands
         .spawn_bundle(PbrBundle {
-            mesh: meshes.add(Mesh::from(shape::Box::new(5.0, 1.0, 5.0))),
+            mesh: meshes.add(Mesh::from(shape::Box::new(250.0, 50.0, 250.0))),
             transform,
             material: materials.add(StandardMaterial {
                 base_color: Color::ANTIQUE_WHITE,
@@ -88,11 +88,11 @@ fn setup(
         .insert(Sdf::new_scaled(1.0)); // min size
 
     // back (right) wall
-    let mut transform = Transform::from_xyz(0.0, 2.5, -2.5);
+    let mut transform = Transform::from_xyz(0.0, 125.0, -125.0);
     transform.rotate_x(std::f32::consts::FRAC_PI_2);
     commands
         .spawn_bundle(PbrBundle {
-            mesh: meshes.add(Mesh::from(shape::Box::new(5.0, 1.0, 5.0))),
+            mesh: meshes.add(Mesh::from(shape::Box::new(250.0, 50.0, 250.0))),
             transform,
             material: materials.add(StandardMaterial {
                 base_color: Color::ANTIQUE_WHITE,
@@ -106,7 +106,7 @@ fn setup(
     // cube
     commands
         .spawn_bundle(PbrBundle {
-            mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
+            mesh: meshes.add(Mesh::from(shape::Cube { size: 50.0 })),
             material: materials.add(StandardMaterial {
                 base_color: Color::PINK,
                 ..default()
@@ -120,21 +120,21 @@ fn setup(
     commands
         .spawn_bundle(PbrBundle {
             mesh: meshes.add(Mesh::from(shape::UVSphere {
-                radius: 0.5,
+                radius: 25.0,
                 ..default()
             })),
             material: materials.add(StandardMaterial {
                 base_color: Color::LIME_GREEN,
                 ..default()
             }),
-            transform: Transform::from_xyz(1.5, 1.0, 1.5),
+            transform: Transform::from_xyz(75.0, 50.0, 75.0),
             ..default()
         })
-        .insert(Movable)
+        // .insert(Movable)
         .insert(Sdf::new_scaled(1.0));
 
     // fox
-    let scene = asset_server.load("gltf/monkey.glb#Scene0");
+    let scene = asset_server.load("gltf/fox.glb#Scene0");
     commands
         .spawn_bundle(SpatialBundle {
             // transform: Transform::from_scale(Vec3::splat(0.02)),
@@ -144,7 +144,7 @@ fn setup(
         .with_children(|p| {
             p.spawn_bundle(SceneBundle {
                 scene,
-                transform: Transform::from_xyz(1.0, 1.5, 1.5),
+                transform: Transform::from_xyz(50.0, 0.0, 75.0),
                 ..Default::default()
             });
         })
@@ -162,10 +162,10 @@ fn setup(
     // camera
     commands
         .spawn_bundle(Camera3dBundle {
-            transform: Transform::from_xyz(-2.0, 2.5, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
+            transform: Transform::from_xyz(-100.0, 125.0, 250.0).looking_at(Vec3::ZERO, Vec3::Y),
             ..default()
         })
-        .insert(CameraController::default());
+        .insert(CameraController{ walk_speed: 250.0, ..Default::default()});
 }
 
 fn finalise_scene(
@@ -252,7 +252,7 @@ fn movement(
             scale *= 1.01;
         }
 
-        transform.translation += time.delta_seconds() * 2.0 * direction;
+        transform.translation += time.delta_seconds() * 100.0 * direction;
         transform.scale *= scale;
     }
 }

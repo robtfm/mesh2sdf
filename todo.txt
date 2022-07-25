@@ -19,7 +19,7 @@ ao
         - strengths
         - enable/disable for receiver?
      amortise cast costs ...
-     fix animated gltfs (fox is broken, something about scale or ..?)
+     fix animated gltfs (aabb issue still)
 
 soft shadows
         - everything
