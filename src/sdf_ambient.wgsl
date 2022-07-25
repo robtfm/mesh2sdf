@@ -41,19 +41,19 @@ fn sdf_distance(target_point: vec3<f32>, max_distance: f32) -> f32 {
     return distance;
 }
 
-fn sdf_occlusion(world_position: vec4<f32>, world_normal: vec3<f32>) -> f32 {
+fn sdf_occlusion(world_position: vec4<f32>, world_normal: vec3<f32>, cone_scale: f32) -> f32 {
     let target_point = world_position.xyz + world_normal * sdf_view.ao_distances.x;
-    let cone_radius = sdf_view.ao_distances.x * sdf_view.ao_sin_angle;
+    let cone_radius = sdf_view.ao_distances.x * sdf_view.ao_sin_angle * cone_scale;
     let target_point_distance = sdf_distance(target_point, cone_radius) / cone_radius;
     let close = 1.0 - clamp(target_point_distance, 0.0, 1.0);
 
     let target_point = world_position.xyz + world_normal * sdf_view.ao_distances.y;
-    let cone_radius = sdf_view.ao_distances.x * sdf_view.ao_sin_angle;
+    let cone_radius = sdf_view.ao_distances.y * sdf_view.ao_sin_angle * cone_scale;
     let target_point_distance = sdf_distance(target_point, cone_radius) / cone_radius;
     let mid = 1.0 - clamp(target_point_distance, 0.0, 1.0);
 
     let target_point = world_position.xyz + world_normal * sdf_view.ao_distances.z;
-    let cone_radius = sdf_view.ao_distances.x * sdf_view.ao_sin_angle;
+    let cone_radius = sdf_view.ao_distances.z * sdf_view.ao_sin_angle * cone_scale;
     let target_point_distance = sdf_distance(target_point, cone_radius) / cone_radius;
     let far = 1.0 - clamp(target_point_distance, 0.0, 1.0);
 
@@ -79,11 +79,11 @@ fn ambient_occlusion(world_position: vec4<f32>, world_normal: vec3<f32>) -> f32 
     let up = up * ratio;
  
     var sdf_ao = 0.5 + 
-        sdf_occlusion(world_position, world_normal) * 0.2 + 
-        sdf_occlusion(world_position, fwd + up * side + right * side) * 0.075 + 
-        sdf_occlusion(world_position, fwd + up * side - right * side) * 0.075 + 
-        sdf_occlusion(world_position, fwd - up * side + right * side) * 0.075 + 
-        sdf_occlusion(world_position, fwd - up * side - right * side) * 0.075;
+        sdf_occlusion(world_position, world_normal, 1.0) * 0.2 + 
+        sdf_occlusion(world_position, fwd + up * side + right * side, 1.0) * 0.075 + 
+        sdf_occlusion(world_position, fwd + up * side - right * side, 1.0) * 0.075 + 
+        sdf_occlusion(world_position, fwd - up * side + right * side, 1.0) * 0.075 + 
+        sdf_occlusion(world_position, fwd - up * side - right * side, 1.0) * 0.075;
 
     return sdf_ao;
 }
@@ -91,9 +91,9 @@ fn ambient_occlusion(world_position: vec4<f32>, world_normal: vec3<f32>) -> f32 
 fn specular_occlusion(world_position: vec4<f32>, world_normal: vec3<f32>, view: vec3<f32>) -> f32 {
     let use_direction = reflect(-view, world_normal);
  
-    let near = sdf_occlusion(world_position, use_direction);
-    let mid = sdf_occlusion(world_position, use_direction * 4.0);
-    let far = sdf_occlusion(world_position, use_direction * 8.0);
+    let near = sdf_occlusion(world_position, use_direction, 1.0);
+    let mid = sdf_occlusion(world_position, use_direction * 4.0, 0.25);
+    let far = sdf_occlusion(world_position, use_direction * 8.0, 0.125);
 
     let small = min(near, min(mid, far));
     let large = max(near, max(mid, far));
